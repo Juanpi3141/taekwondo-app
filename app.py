@@ -63,21 +63,38 @@ def simular(L, m, w_max, t_acc, sweep_rad):
     )
 
 
-# ---------- Visualización en el navegador (sin Python en cada cuadro) ----------
+# ---------- Visualización en el navegador ----------
 PLANTILLA = """
 <div style="font-family:sans-serif;color:#222">
-<svg viewBox="0 0 600 400" width="100%" style="background:#fff;border:1px solid #ddd;border-radius:8px">
-  <line x1="0" y1="380" x2="600" y2="380" stroke="#999" stroke-width="2"/>
+<svg viewBox="0 0 600 400" width="100%" style="border:1px solid #ddd;border-radius:8px">
+  <rect width="600" height="400" fill="#f4f6f8"/>
+  <line x1="0" y1="380" x2="600" y2="380" stroke="#9aa3a8" stroke-width="2"/>
   <path id="arc" fill="none" stroke="#bbb" stroke-dasharray="6 6"/>
   <path id="rastro" fill="none" stroke="#E24B4A" stroke-opacity="0.35" stroke-width="5"/>
-  <line id="stand" stroke="#333" stroke-width="12" stroke-linecap="round"/>
-  <line id="torso" stroke="#333" stroke-width="14" stroke-linecap="round"/>
-  <line id="arm" stroke="#333" stroke-width="9" stroke-linecap="round"/>
-  <circle id="head" r="22" fill="#333"/>
-  <line id="kick" stroke="#2b5fa8" stroke-width="13" stroke-linecap="round"/>
+
+  <polyline id="sOut" fill="none" stroke="#5f6b73" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline id="sFill" fill="none" stroke="#ECECEC" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse id="sShoe" fill="#222"/>
+
+  <g id="upper">
+    <polyline id="aOutD" fill="none" stroke="#5f6b73" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline id="aFillD" fill="none" stroke="#ECECEC" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline id="aOutG" fill="none" stroke="#5f6b73" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline id="aFillG" fill="none" stroke="#ECECEC" stroke-linecap="round" stroke-linejoin="round"/>
+    <line id="neck" stroke="#E0A77A" stroke-linecap="round"/>
+    <polygon id="jacket" fill="#ECECEC" stroke="#5f6b73" stroke-width="2" stroke-linejoin="round"/>
+    <line id="belt" stroke="#1a1a1a" stroke-linecap="butt"/>
+    <ellipse id="hair" fill="#222"/>
+    <circle id="head" fill="#E0A77A" stroke="#8a5a3a" stroke-width="2"/>
+    <circle id="eye" fill="#222"/>
+  </g>
+
+  <polyline id="kOut" fill="none" stroke="#5f6b73" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline id="kFill" fill="none" stroke="#ECECEC" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle id="kShoe" fill="#222"/>
+  <circle id="tipMark" fill="#E24B4A"/>
   <line id="vec" stroke="#1D9E75" stroke-width="4"/>
   <circle id="vhead" r="5" fill="#1D9E75"/>
-  <circle id="foot" r="9" fill="#E24B4A"/>
   <text x="16" y="28" font-size="14" fill="#555">Punta del pie: <tspan id="vtxt">0.00</tspan> m/s</text>
 </svg>
 
@@ -107,78 +124,124 @@ PLANTILLA = """
 
 <script>
 const D = __DATA__;
-const S = Math.min(180, 300 / D.L);
-const GY = 380;
-const hx = 260, hy = GY - D.L * S;
 const $ = id => document.getElementById(id);
+const GY = 380;
+const S = Math.min(180, 300 / D.L);
+const u = D.L * S;                 // longitud de la pierna en píxeles
+const hx = 260, hy = GY - 0.95 * u; // centro de la cadera
+const PX = hx + 0.1 * u, PY = hy;   // pivote de la pierna que patea
 
-function pt(th) {
-  return [hx + D.L * S * Math.sin(th), hy + D.L * S * Math.cos(th)];
+const rel = (x, y) => [hx + x * u, hy + y * u];
+const ps = arr => arr.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+function setPoly(id, pts, w) {
+  const e = $(id);
+  e.setAttribute("points", ps(pts));
+  e.setAttribute("stroke-width", w.toFixed(1));
+}
+function pt(th) { return [PX + u * Math.sin(th), PY + u * Math.cos(th)]; }
+function kickPts(th) {
+  const sx = Math.sin(th), sy = Math.cos(th);
+  return [[PX, PY], [PX + 0.5 * u * sx, PY + 0.5 * u * sy], [PX + u * sx, PY + u * sy]];
 }
 
-// Cuerpo fijo
-const shY = hy - 0.6 * S;
-$('stand').setAttribute('x1', hx); $('stand').setAttribute('y1', hy);
-$('stand').setAttribute('x2', hx - 18); $('stand').setAttribute('y2', GY);
-$('torso').setAttribute('x1', hx); $('torso').setAttribute('y1', hy);
-$('torso').setAttribute('x2', hx); $('torso').setAttribute('y2', shY);
-$('arm').setAttribute('x1', hx); $('arm').setAttribute('y1', shY + 12);
-$('arm').setAttribute('x2', hx + 40); $('arm').setAttribute('y2', shY + 60);
-$('head').setAttribute('cx', hx); $('head').setAttribute('cy', shY - 26);
-$('kick').setAttribute('x1', hx); $('kick').setAttribute('y1', hy);
+// ----- Figura fija: pierna de apoyo, torso, brazos, cabeza -----
+const stand = [[hx - 0.1 * u, hy], [hx - 0.13 * u, hy + 0.46 * u], [hx - 0.1 * u, GY - 0.05 * u]];
+setPoly("sOut", stand, 0.21 * u);
+setPoly("sFill", stand, 0.17 * u);
+const sh = $("sShoe");
+sh.setAttribute("cx", hx - 0.1 * u + 0.04 * u);
+sh.setAttribute("cy", GY - 0.04 * u);
+sh.setAttribute("rx", 0.14 * u);
+sh.setAttribute("ry", 0.05 * u);
 
-// Trayectoria (arco) y gráficas
+setPoly("aOutD", [rel(-0.18, -0.56), rel(-0.24, -0.3), rel(-0.25, -0.1)], 0.13 * u);
+setPoly("aFillD", [rel(-0.18, -0.56), rel(-0.24, -0.3), rel(-0.25, -0.1)], 0.09 * u);
+setPoly("aOutG", [rel(0.18, -0.56), rel(0.3, -0.36), rel(0.14, -0.66)], 0.13 * u);
+setPoly("aFillG", [rel(0.18, -0.56), rel(0.3, -0.36), rel(0.14, -0.66)], 0.09 * u);
+
+const nk = $("neck");
+const n1 = rel(0, -0.6), n2 = rel(0, -0.72);
+nk.setAttribute("x1", n1[0]); nk.setAttribute("y1", n1[1]);
+nk.setAttribute("x2", n2[0]); nk.setAttribute("y2", n2[1]);
+nk.setAttribute("stroke-width", (0.1 * u).toFixed(1));
+
+$("jacket").setAttribute("points", ps([rel(-0.2, -0.62), rel(0.2, -0.62), rel(0.17, -0.04), rel(-0.17, -0.04)]));
+const bl = $("belt"), b1 = rel(-0.17, -0.06), b2 = rel(0.17, -0.06);
+bl.setAttribute("x1", b1[0]); bl.setAttribute("y1", b1[1]);
+bl.setAttribute("x2", b2[0]); bl.setAttribute("y2", b2[1]);
+bl.setAttribute("stroke-width", (0.08 * u).toFixed(1));
+
+const hr = $("hair");
+hr.setAttribute("cx", hx); hr.setAttribute("cy", hy - 0.88 * u);
+hr.setAttribute("rx", 0.14 * u); hr.setAttribute("ry", 0.11 * u);
+const hd = $("head");
+hd.setAttribute("cx", hx); hd.setAttribute("cy", hy - 0.84 * u); hd.setAttribute("r", 0.13 * u);
+const ey = $("eye");
+ey.setAttribute("cx", hx + 0.06 * u); ey.setAttribute("cy", hy - 0.85 * u); ey.setAttribute("r", 0.015 * u);
+
+// ----- Trayectoria -----
 let arc = "";
 for (let i = 0; i <= 60; i++) {
   const [x, y] = pt(D.sweep * i / 60);
   arc += (i ? "L" : "M") + x.toFixed(1) + "," + y.toFixed(1) + " ";
 }
-$('arc').setAttribute('d', arc);
+$("arc").setAttribute("d", arc);
 
+// ----- Gráficas -----
 const vmax = Math.max(...D.v) * 1.1 || 1;
 const kmax = Math.max(...D.k) * 1.1 || 1;
-$('lv').textContent = "v máx " + Math.max(...D.v).toFixed(1) + " m/s";
-$('lk').textContent = "K máx " + Math.max(...D.k).toFixed(1) + " J";
+$("lv").textContent = "v máx " + Math.max(...D.v).toFixed(1) + " m/s";
+$("lk").textContent = "K máx " + Math.max(...D.k).toFixed(1) + " J";
 function poly(arr, max) {
   return D.t.map((t, i) =>
     (10 + 580 * t / D.tend).toFixed(1) + "," + (130 - 120 * arr[i] / max).toFixed(1)
   ).join(" ");
 }
-$('pv').setAttribute('points', poly(D.v, vmax));
-$('pk').setAttribute('points', poly(D.k, kmax));
+$("pv").setAttribute("points", poly(D.v, vmax));
+$("pk").setAttribute("points", poly(D.k, kmax));
 
+// ----- Cuadro -----
 function frame(i) {
   const th = D.th[i], t = D.t[i];
-  const [fx, fy] = pt(th);
-  $('kick').setAttribute('x2', fx); $('kick').setAttribute('y2', fy);
-  $('foot').setAttribute('cx', fx); $('foot').setAttribute('cy', fy);
+  const kp = kickPts(th);
+  setPoly("kOut", kp, 0.21 * u);
+  setPoly("kFill", kp, 0.17 * u);
+  const tip = kp[2];
+  const ks = $("kShoe");
+  ks.setAttribute("cx", tip[0]); ks.setAttribute("cy", tip[1]); ks.setAttribute("r", 0.09 * u);
+  const tm = $("tipMark");
+  tm.setAttribute("cx", tip[0]); tm.setAttribute("cy", tip[1]); tm.setAttribute("r", 4);
 
-  // Vector velocidad: tangente a la trayectoria, longitud proporcional a v
+  // Vector velocidad tangente a la trayectoria
   const len = 4 * D.v[i];
-  const vx = fx + Math.cos(th) * len, vy = fy - Math.sin(th) * len;
-  $('vec').setAttribute('x1', fx); $('vec').setAttribute('y1', fy);
-  $('vec').setAttribute('x2', vx); $('vec').setAttribute('y2', vy);
-  $('vhead').setAttribute('cx', vx); $('vhead').setAttribute('cy', vy);
+  const vx = tip[0] + Math.cos(th) * len, vy = tip[1] - Math.sin(th) * len;
+  $("vec").setAttribute("x1", tip[0]); $("vec").setAttribute("y1", tip[1]);
+  $("vec").setAttribute("x2", vx); $("vec").setAttribute("y2", vy);
+  $("vhead").setAttribute("cx", vx); $("vhead").setAttribute("cy", vy);
 
-  // Rastro de la punta hasta el instante actual
+  // Inclinación del torso hacia atrás, proporcional al avance de la patada
+  const lean = -8 * (th / D.sweep);
+  $("upper").setAttribute("transform", "rotate(" + lean.toFixed(2) + " " + hx + " " + hy.toFixed(1) + ")");
+
+  // Rastro
   let r = "";
   for (let j = 0; j <= i; j++) {
     const [x, y] = pt(D.th[j]);
     r += (j ? "L" : "M") + x.toFixed(1) + "," + y.toFixed(1) + " ";
   }
-  $('rastro').setAttribute('d', r);
+  $("rastro").setAttribute("d", r);
 
-  $('tt').textContent = "t = " + t.toFixed(3) + " s";
-  $('vtxt').textContent = D.v[i].toFixed(2);
-  $('mv').textContent = D.v[i].toFixed(2);
-  $('mk').textContent = D.k[i].toFixed(2);
-  $('mp').textContent = D.p[i].toFixed(2);
-  $('mt').textContent = (th * 180 / Math.PI).toFixed(1);
-  $('cur').setAttribute('x1', 10 + 580 * t / D.tend);
-  $('cur').setAttribute('x2', 10 + 580 * t / D.tend);
+  $("tt").textContent = "t = " + t.toFixed(3) + " s";
+  $("vtxt").textContent = D.v[i].toFixed(2);
+  $("mv").textContent = D.v[i].toFixed(2);
+  $("mk").textContent = D.k[i].toFixed(2);
+  $("mp").textContent = D.p[i].toFixed(2);
+  $("mt").textContent = (th * 180 / Math.PI).toFixed(1);
+  const cx = 10 + 580 * t / D.tend;
+  $("cur").setAttribute("x1", cx); $("cur").setAttribute("x2", cx);
 }
 
-// Reproducción en tiempo real escalada por "cámara lenta"
+// ----- Reproducción en tiempo real escalada por "cámara lenta" -----
 let elapsed = 0, last = null, playing = false, loopId = 0;
 const dur = D.tend * D.slow;
 
@@ -190,87 +253,27 @@ function loop(id, now) {
   frame(Math.round(f * (D.t.length - 1)));
   if (f >= 1) {
     playing = false;
-    $('btn').textContent = "▶ Repetir";
-    $('estado').textContent = "Impacto";
+    $("btn").textContent = "▶ Repetir";
+    $("estado").textContent = "Impacto";
     return;
   }
   requestAnimationFrame(n => loop(id, n));
 }
 
-$('btn').onclick = () => {
+$("btn").onclick = () => {
   if (playing) {
     playing = false; last = null;
-    $('btn').textContent = "▶ Continuar";
-    $('estado').textContent = "En pausa";
+    $("btn").textContent = "▶ Continuar";
+    $("estado").textContent = "En pausa";
     return;
   }
-  if (elapsed >= dur) { elapsed = 0; }
+  if (elapsed >= dur) elapsed = 0;
   playing = true; last = null;
   loopId++;
-  $('btn').textContent = "⏸ Pausa";
-  $('estado').textContent = "Reproduciendo";
+  $("btn").textContent = "⏸ Pausa";
+  $("estado").textContent = "Reproduciendo";
   requestAnimationFrame(n => loop(loopId, n));
 };
 
-$('rst').onclick = () => {
+$("rst").onclick = () => {
   playing = false; last = null; elapsed = 0; loopId++;
-  $('btn').textContent = "▶ Animar patada";
-  $('estado').textContent = "";
-  frame(0);
-};
-
-frame(0);
-</script>
-"""
-
-# ---------- Pestañas ----------
-tab_sim, tab_teoria = st.tabs(["Simulación", "Teoría"])
-
-with tab_teoria:
-    st.subheader("Física detrás de la patada")
-    st.markdown("La pierna se modela como una barra uniforme que gira alrededor de la cadera.")
-    st.latex(r"I = \tfrac{1}{3} m L^2 \qquad \text{(respecto al extremo)}")
-    st.latex(r"v_{punta} = \omega L \qquad v_{cm} = \tfrac{1}{2}\omega L")
-    st.latex(r"K = \tfrac{1}{2} I \omega^2 \qquad p = m\,v_{cm}")
-    st.latex(r"\alpha = \frac{\omega_{max}}{t_{acc}} \qquad \theta_{acc} = \tfrac{1}{2}\omega_{max}t_{acc}")
-    st.latex(r"\Delta p = m_{eff}\,v_{punta} \qquad F_{prom} = \frac{\Delta p}{\Delta t_{contacto}}")
-    st.markdown(
-        "La velocidad de la punta crece con la longitud de la pierna y la velocidad angular. "
-        "Como la energía cinética depende de ω², pequeños aumentos de velocidad angular "
-        "producen grandes aumentos de energía. Un contacto más corto aumenta la fuerza media."
-    )
-
-with tab_sim:
-    st.subheader(tecnica)
-    sweep = np.radians(sweep_deg)
-    res = simular(L, m_pierna, w_max, t_acc, sweep)
-
-    if res is None:
-        st.error("El tiempo de aceleración es demasiado largo para el ángulo de barrido. "
-                 "Reduce t_acc, sube la velocidad angular o aumenta el ángulo.")
-    else:
-        v_imp = float(res["v_tip"][-1])
-        if velocidad_valida(v_imp, "Velocidad de la punta al impacto"):
-            idx = np.linspace(0, len(res["t"]) - 1, 120).astype(int)
-            datos = {
-                "L": L,
-                "sweep": float(sweep),
-                "tend": float(res["t_imp"]),
-                "slow": lento,
-                "t": res["t"][idx].round(4).tolist(),
-                "th": res["theta"][idx].round(4).tolist(),
-                "v": res["v_tip"][idx].round(3).tolist(),
-                "k": res["ke"][idx].round(3).tolist(),
-                "p": res["p"][idx].round(3).tolist(),
-            }
-            components.html(PLANTILLA.replace("__DATA__", json.dumps(datos)), height=760)
-
-            p_imp = m_eff * v_imp
-            F_imp = p_imp / dt_contacto
-            E_imp = 0.5 * m_eff * v_imp**2
-
-            st.subheader("Resultados en el impacto")
-            r1, r2, r3 = st.columns(3)
-            r1.metric("Cantidad de movimiento transferida (kg·m/s)", f"{p_imp:.2f}")
-            r2.metric("Fuerza media en el contacto (N)", f"{F_imp:.0f}")
-            r3.metric("Energía cinética en el impacto (J)", f"{E_imp:.1f}")
