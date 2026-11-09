@@ -277,3 +277,63 @@ $("btn").onclick = () => {
 
 $("rst").onclick = () => {
   playing = false; last = null; elapsed = 0; loopId++;
+  $("btn").textContent = "▶ Animar patada";
+  $("estado").textContent = "";
+  frame(0);
+};
+
+frame(0);
+</script>
+"""
+
+# ---------- Pestañas ----------
+tab_sim, tab_teoria = st.tabs(["Simulación", "Teoría"])
+
+with tab_teoria:
+    st.subheader("Física detrás de la patada")
+    st.markdown("La pierna se modela como una barra uniforme que gira alrededor de la cadera.")
+    st.latex(r"I = \tfrac{1}{3} m L^2 \qquad \text{(respecto al extremo)}")
+    st.latex(r"v_{punta} = \omega L \qquad v_{cm} = \tfrac{1}{2}\omega L")
+    st.latex(r"K = \tfrac{1}{2} I \omega^2 \qquad p = m\,v_{cm}")
+    st.latex(r"\alpha = \frac{\omega_{max}}{t_{acc}} \qquad \theta_{acc} = \tfrac{1}{2}\omega_{max}t_{acc}")
+    st.latex(r"\Delta p = m_{eff}\,v_{punta} \qquad F_{prom} = \frac{\Delta p}{\Delta t_{contacto}}")
+    st.markdown(
+        "La velocidad de la punta crece con la longitud de la pierna y la velocidad angular. "
+        "Como la energía cinética depende de ω², pequeños aumentos de velocidad angular "
+        "producen grandes aumentos de energía. Un contacto más corto aumenta la fuerza media."
+    )
+
+with tab_sim:
+    st.subheader(tecnica)
+    sweep = np.radians(sweep_deg)
+    res = simular(L, m_pierna, w_max, t_acc, sweep)
+
+    if res is None:
+        st.error("El tiempo de aceleración es demasiado largo para el ángulo de barrido. "
+                 "Reduce t_acc, sube la velocidad angular o aumenta el ángulo.")
+    else:
+        v_imp = float(res["v_tip"][-1])
+        if velocidad_valida(v_imp, "Velocidad de la punta al impacto"):
+            idx = np.linspace(0, len(res["t"]) - 1, 120).astype(int)
+            datos = {
+                "L": L,
+                "sweep": float(sweep),
+                "tend": float(res["t_imp"]),
+                "slow": lento,
+                "t": res["t"][idx].round(4).tolist(),
+                "th": res["theta"][idx].round(4).tolist(),
+                "v": res["v_tip"][idx].round(3).tolist(),
+                "k": res["ke"][idx].round(3).tolist(),
+                "p": res["p"][idx].round(3).tolist(),
+            }
+            components.html(PLANTILLA.replace("__DATA__", json.dumps(datos)), height=760)
+
+            p_imp = m_eff * v_imp
+            F_imp = p_imp / dt_contacto
+            E_imp = 0.5 * m_eff * v_imp**2
+
+            st.subheader("Resultados en el impacto")
+            r1, r2, r3 = st.columns(3)
+            r1.metric("Cantidad de movimiento transferida (kg·m/s)", f"{p_imp:.2f}")
+            r2.metric("Fuerza media en el contacto (N)", f"{F_imp:.0f}")
+            r3.metric("Energía cinética en el impacto (J)", f"{E_imp:.1f}")
